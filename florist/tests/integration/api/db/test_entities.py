@@ -247,6 +247,50 @@ async def test_set_client_log_file_path_success(mock_request) -> None:
     assert result_job == test_job
 
 
+async def test_set_pid_success(mock_request) -> None:
+    test_job = get_test_job()
+    result_id = await test_job.create(mock_request.app.database)
+    test_job.id = result_id
+    test_job.clients_info[0].id = ANY
+    test_job.clients_info[1].id = ANY
+
+    test_server_pid = "new-server-pid"
+    test_client_pid_1 = "new-client-pid-1"
+    test_client_pid_2 = "new-client-pid-2"
+
+    await test_job.set_pids(test_server_pid, [test_client_pid_1, test_client_pid_2], mock_request.app.database)
+
+    result_job = await Job.find_by_id(result_id, mock_request.app.database)
+    test_job.server_pid = test_server_pid
+    test_job.clients_info[0].pid = test_client_pid_1
+    test_job.clients_info[1].pid = test_client_pid_2
+    assert result_job == test_job
+
+
+async def test_set_pid_assertion_error(mock_request) -> None:
+    test_job = get_test_job()
+    await test_job.create(mock_request.app.database)
+
+    with raises(AssertionError, match=re.escape("self.clients_info and client_pids must have the same length (2!=1)")):
+        await test_job.set_pids("test", ["test"], mock_request.app.database)
+
+
+async def test_set_error_message_success(mock_request) -> None:
+    test_job = get_test_job()
+    result_id = await test_job.create(mock_request.app.database)
+    test_job.id = result_id
+    test_job.clients_info[0].id = ANY
+    test_job.clients_info[1].id = ANY
+
+    test_error_message = "new-error-message"
+
+    await test_job.set_error_message(test_error_message, mock_request.app.database)
+
+    result_job = await Job.find_by_id(result_id, mock_request.app.database)
+    test_job.error_message = test_error_message
+    assert result_job == test_job
+
+
 def get_test_job() -> Job:
     test_server_config = {
         "n_server_rounds": 2,
@@ -263,6 +307,8 @@ def get_test_job() -> Job:
         "redis_port": "test-redis-port",
         "server_uuid": "test-server-uuid",
         "server_metrics": "test-server-metrics",
+        "server_pid": "test-server-pid-1",
+        "error_message": "test-error-message",
         "clients_info": [
             {
                 "client": "MNIST",
@@ -272,6 +318,7 @@ def get_test_job() -> Job:
                 "redis_port": "test-redis-port-1",
                 "uuid": "test-client-uuids-1",
                 "metrics": "test-client-metrics-1",
+                "pid": "test-client-pid-1",
             },
             {
                 "client": "MNIST",
@@ -281,6 +328,7 @@ def get_test_job() -> Job:
                 "redis_port": "test-redis-port-2",
                 "uuid": "test-client-uuids-2",
                 "metrics": "test-client-metrics-2",
+                "pid": "test-client-pid-2",
             },
         ],
     })

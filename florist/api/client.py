@@ -1,6 +1,8 @@
 """FLorist client FastAPI endpoints."""
 
 import logging
+import os
+import signal
 import uuid
 from pathlib import Path
 
@@ -41,11 +43,12 @@ def start(server_address: str, client: str, data_path: str, redis_host: str, red
     :param data_path: (str) the path where the training data is located.
     :param redis_host: (str) the host name for the Redis instance for metrics reporting.
     :param redis_port: (str) the port for the Redis instance for metrics reporting.
-    :return: (JSONResponse) If successful, returns 200 with a JSON containing the UUID for the client in the
-        format below, which can be used to pull metrics from Redis.
+    :return: (JSONResponse) If successful, returns 200 with a JSON containing the UUID, the PID and the log
+        file path for the client in the format below:
             {
                 "uuid": (str) The client's uuid, which can be used to pull metrics from Redis,
                 "log_file_path": (str) The local path of the log file for this client,
+                "pid": (str) The PID of the client process
             }
         If not successful, returns the appropriate error code with a JSON with the format below:
             {
@@ -71,9 +74,9 @@ def start(server_address: str, client: str, data_path: str, redis_host: str, red
         )
 
         log_file_path = str(get_client_log_file_path(client_uuid))
-        launch_client(client_obj, server_address, log_file_path)
+        client_process = launch_client(client_obj, server_address, log_file_path)
 
-        return JSONResponse({"uuid": client_uuid, "log_file_path": log_file_path})
+        return JSONResponse({"uuid": client_uuid, "log_file_path": log_file_path, "pid": str(client_process.pid)})
 
     except Exception as ex:
         return JSONResponse({"error": str(ex)}, status_code=500)
@@ -117,3 +120,26 @@ def get_log(log_file_path: str) -> JSONResponse:
     with open(log_file_path, "r") as f:
         content = f.read()
         return JSONResponse(content)
+
+
+# TODO verify the safety of this call
+@app.get("/api/client/stop/{pid}")
+def stop(pid: str) -> JSONResponse:
+    """
+    Kills the client process with given PID.
+
+    :param pid: (str) the PID of the client to be killed.
+    :return: (JSONResponse) If successful, returns 200. If not successful, returns the appropriate
+        error code with a JSON with the format below:
+            {"error": <error message>}
+    """
+    try:
+        assert pid, "PID is empty or None."
+        os.kill(int(pid), signal.SIGTERM)
+        LOGGER.info(f"Killed process with PID {pid}")
+        return JSONResponse(content={"status": "success"})
+    except AssertionError as err:
+        return JSONResponse(content={"error": str(err)}, status_code=400)
+    except Exception as ex:
+        LOGGER.exception(ex)
+        return JSONResponse({"error": str(ex)}, status_code=500)

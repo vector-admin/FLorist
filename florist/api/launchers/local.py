@@ -117,7 +117,7 @@ def launch_server(
     return server_process
 
 
-def launch_client(client: BasicClient, server_address: str, client_log_file_name: str) -> None:
+def launch_client(client: BasicClient, server_address: str, client_log_file_name: str) -> Process:
     """
     Spawn a process that starts FL client.
 
@@ -128,6 +128,7 @@ def launch_client(client: BasicClient, server_address: str, client_log_file_name
     """
     client_process = Process(target=start_client, args=(client, server_address, client_log_file_name))
     client_process.start()
+    return client_process
 
 
 def launch(

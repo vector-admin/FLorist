@@ -110,8 +110,18 @@ export function JobDetailsBody(): ReactElement {
                     {job.redis_port}
                 </div>
             </div>
+            {job.error_message ? (
+                <div className="row pb-2 mb-2">
+                    <div className="col-sm-2">
+                        <strong className="text-dark">Error:</strong>
+                    </div>
+                    <div className="col-sm" id="job-details-error-message">
+                        {job.error_message}
+                    </div>
+                </div>
+            ) : null}
 
-            <JobProgressBar metrics={job.server_metrics} totalEpochs={totalEpochs} status={job.status} />
+            <JobProgressBar metrics={job.server_metrics} totalEpochs={totalEpochs} jobStatus={job.status} />
 
             <JobDetailsTable
                 Component={JobDetailsServerConfigTable}
@@ -123,7 +133,7 @@ export function JobDetailsBody(): ReactElement {
                 Component={JobDetailsClientsInfoTable}
                 title="Clients Configuration"
                 data={job.clients_info}
-                properties={{ totalEpochs }}
+                properties={{ totalEpochs, jobStatus: job.status }}
             />
         </div>
     );
@@ -174,12 +184,12 @@ export function JobDetailsStatus({ status }: { status: string }): ReactElement {
 export function JobProgressBar({
     metrics,
     totalEpochs,
-    status,
+    jobStatus,
     clientIndex,
 }: {
     metrics: string;
     totalEpochs: number;
-    status: status;
+    jobStatus: status;
     clientIndex: number;
 }): ReactElement {
     const [collapsed, setCollapsed] = useState(true);
@@ -206,16 +216,22 @@ export function JobProgressBar({
     }
     const progressWidth = progressPercent === 0 ? "100%" : `${progressPercent}%`;
 
-    // Clients will not have a status, so we need to set one based on the progress percent
-    if (!status) {
-        if (progressPercent === 0) {
-            status = "NOT_STARTED";
-        } else if (progressPercent === 100) {
-            status = "FINISHED_SUCCESSFULLY";
-        } else {
-            status = "IN_PROGRESS";
+    // Clients will not have a status, so we need to set one based on
+    // the server status and progress percent
+    let status = jobStatus;
+    if (metricsJson.host_type === "client") {
+        if (
+            validStatuses[status] !== validStatuses.FINISHED_SUCCESSFULLY &&
+            validStatuses[status] !== validStatuses.FINISHED_WITH_ERROR
+        ) {
+            if (progressPercent === 0) {
+                status = "NOT_STARTED";
+            } else if (progressPercent === 100) {
+                status = "FINISHED_SUCCESSFULLY";
+            } else {
+                status = "IN_PROGRESS";
+            }
         }
-        // TODO: add error status
     }
 
     let progressBarClasses = "progress-bar progress-bar-striped";
@@ -274,7 +290,9 @@ export function JobProgressBar({
                         </div>
                     </div>
                     <div className="row pb-2">
-                        {!collapsed ? <JobProgressDetails metrics={metricsJson} clientIndex={clientIndex} /> : null}
+                        {!collapsed ? (
+                            <JobProgressDetails metrics={metricsJson} clientIndex={clientIndex} status={status} />
+                        ) : null}
                     </div>
                 </div>
             </div>
@@ -282,7 +300,15 @@ export function JobProgressBar({
     );
 }
 
-export function JobProgressDetails({ metrics, clientIndex }: { metrics: Object; clientIndex: number }): ReactElement {
+export function JobProgressDetails({
+    metrics,
+    clientIndex,
+    status,
+}: {
+    metrics: Object;
+    clientIndex: number;
+    status: string;
+}): ReactElement {
     if (!metrics) {
         return null;
     }
@@ -301,8 +327,12 @@ export function JobProgressDetails({ metrics, clientIndex }: { metrics: Object; 
     let elapsedTime = "";
     if (fitStartKey in metrics) {
         const startDate = Date.parse(metrics[fitStartKey]);
-        const endDate = fitEndKey in metrics ? Date.parse(metrics[fitEndKey]) : Date.now();
-        elapsedTime = getTimeString(endDate - startDate);
+        if (fitEndKey in metrics) {
+            elapsedTime = getTimeString(Date.parse(metrics[fitEndKey]) - startDate);
+        } else if (validStatuses[status] === validStatuses.IN_PROGRESS) {
+            // only estimate elapsed time if the job is in progress
+            elapsedTime = getTimeString(Date.now() - startDate);
+        }
     }
 
     let roundMetricsArray = [];
@@ -669,6 +699,7 @@ export function JobDetailsClientsInfoTable({
                                             metrics={clientInfo.metrics}
                                             totalEpochs={properties.totalEpochs}
                                             clientIndex={i}
+                                            jobStatus={properties.jobStatus}
                                         />
                                     </span>
                                 </div>

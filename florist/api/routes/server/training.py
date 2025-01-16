@@ -4,7 +4,7 @@ import asyncio
 import logging
 from json import JSONDecodeError
 from threading import Thread
-from typing import Any, List
+from typing import Any, List, Tuple
 
 import requests
 from fastapi import APIRouter, Request
@@ -72,7 +72,7 @@ async def start(job_id: str, request: Request) -> JSONResponse:
         model_class = Model.class_for_model(job.model)
 
         # Start the server
-        server_uuid, _, server_log_file_path = launch_local_server(
+        server_uuid, server_process, server_log_file_path = launch_local_server(
             model=model_class(),
             n_clients=len(job.clients_info),
             server_address=job.server_address,
@@ -80,42 +80,33 @@ async def start(job_id: str, request: Request) -> JSONResponse:
             redis_port=job.redis_port,
             **server_config,
         )
+
         await job.set_server_log_file_path(server_log_file_path, request.app.database)
+
         wait_for_metric(server_uuid, "fit_start", job.redis_host, job.redis_port, logger=LOGGER)
 
         # Start the clients
         client_uuids: List[str] = []
+        client_pids: List[str] = []
         for i in range(len(job.clients_info)):
             client_info = job.clients_info[i]
-            parameters = {
-                "server_address": job.server_address,
-                "client": client_info.client.value,
-                "data_path": client_info.data_path,
-                "redis_host": client_info.redis_host,
-                "redis_port": client_info.redis_port,
-            }
-            response = requests.get(url=f"http://{client_info.service_address}/{START_CLIENT_API}", params=parameters)
-            json_response = response.json()
-            LOGGER.debug(f"Client response: {json_response}")
+            uuid, pid, log_file_path = _start_client(job.server_address, client_info)
+            client_uuids.append(uuid)
+            client_pids.append(pid)
 
-            if response.status_code != 200:
-                raise Exception(f"Client response returned {response.status_code}. Response: {json_response}")
-
-            if "uuid" not in json_response:
-                raise Exception(f"Client response did not return a UUID. Response: {json_response}")
-
-            client_uuids.append(json_response["uuid"])
-
-            await job.set_client_log_file_path(i, json_response["log_file_path"], request.app.database)
+            await job.set_client_log_file_path(i, log_file_path, request.app.database)
 
         await job.set_uuids(server_uuid, client_uuids, request.app.database)
+        await job.set_pids(str(server_process.pid), client_pids, request.app.database)
 
         # Start the server training listener and client training listeners as threads to update
         # the job's metrics and status once the training is done
         server_listener_thread = Thread(target=asyncio.run, args=(server_training_listener(job),))
+        server_listener_thread.daemon = True
         server_listener_thread.start()
         for client_info in job.clients_info:
             client_listener_thread = Thread(target=asyncio.run, args=(client_training_listener(job, client_info),))
+            client_listener_thread.daemon = True
             client_listener_thread.start()
 
         # Return the UUIDs
@@ -234,3 +225,37 @@ async def server_training_listener(job: Job) -> None:
                     return
 
     db_client.close()
+
+
+def _start_client(server_address: str, client_info: ClientInfo) -> Tuple[str, str, str]:
+    """
+    Start a client.
+
+    :param server_address: (str) the address of the server the client needs to report to
+    :param client_info: (ClientInfo) an instance of ClientInfo with the information needed to start the client
+    :return (Tuple[str, str, str]): A tuple containing two values: the client's UUID and PID
+    """
+    parameters = {
+        "server_address": server_address,
+        "client": client_info.client.value,
+        "data_path": client_info.data_path,
+        "redis_host": client_info.redis_host,
+        "redis_port": client_info.redis_port,
+    }
+    response = requests.get(url=f"http://{client_info.service_address}/{START_CLIENT_API}", params=parameters)
+    json_response = response.json()
+    LOGGER.debug(f"Client response: {json_response}")
+
+    if response.status_code != 200:
+        raise Exception(f"Client response returned {response.status_code}. Response: {json_response}")
+
+    if "uuid" not in json_response:
+        raise Exception(f"Client response did not return a UUID. Response: {json_response}")
+
+    if "pid" not in json_response:
+        raise Exception(f"Client response did not return a PID. Response: {json_response}")
+
+    if "log_file_path" not in json_response:
+        raise Exception(f"Client response did not return a log file path. Response: {json_response}")
+
+    return json_response["uuid"], json_response["pid"], json_response["log_file_path"]

@@ -22,7 +22,9 @@ from florist.api.routes.server.training import (
 @patch("florist.api.db.entities.Job.set_uuids")
 @patch("florist.api.db.entities.Job.set_server_log_file_path")
 @patch("florist.api.db.entities.Job.set_client_log_file_path")
+@patch("florist.api.db.entities.Job.set_pids")
 async def test_start_success(
+    mock_set_pids: Mock,
     mock_set_client_log_file_path: Mock,
     mock_server_log_file_path: Mock,
     mock_set_uuids: Mock,
@@ -39,7 +41,10 @@ async def test_start_success(
 
     test_server_uuid = "test-server-uuid"
     test_server_log_file_path = "test-log-file-path"
-    mock_launch_local_server.return_value = (test_server_uuid, None, test_server_log_file_path)
+    test_server_pid = 12345
+    mock_server_process = Mock()
+    mock_server_process.pid = test_server_pid
+    mock_launch_local_server.return_value = (test_server_uuid, mock_server_process, test_server_log_file_path)
 
     mock_redis_connection = Mock()
     mock_redis_connection.get.return_value = b"{\"fit_start\": null}"
@@ -49,11 +54,13 @@ async def test_start_success(
     mock_response.status_code = 200
     test_client_1_uuid = "test-client-1-uuid"
     test_client_1_log_file_path = "test-client-1-log-file-path"
+    test_client_1_pid = "test-client-1-pid"
     test_client_2_uuid = "test-client-2-uuid"
     test_client_2_log_file_path = "test-client-2-log-file-path"
+    test_client_2_pid = "test-client-2-pid"
     mock_response.json.side_effect = [
-        {"uuid": test_client_1_uuid, "log_file_path": test_client_1_log_file_path},
-        {"uuid": test_client_2_uuid, "log_file_path": test_client_2_log_file_path},
+        {"uuid": test_client_1_uuid, "log_file_path": test_client_1_log_file_path, "pid": test_client_1_pid},
+        {"uuid": test_client_2_uuid, "log_file_path": test_client_2_log_file_path, "pid": test_client_2_pid},
     ]
     mock_requests.get.return_value = mock_response
 
@@ -115,6 +122,11 @@ async def test_start_success(
     mock_set_uuids.assert_called_once_with(
         test_server_uuid,
         [test_client_1_uuid, test_client_2_uuid],
+        mock_fastapi_request.app.database,
+    )
+    mock_set_pids.assert_called_once_with(
+        str(test_server_pid),
+        [test_client_1_pid, test_client_2_pid],
         mock_fastapi_request.app.database,
     )
 

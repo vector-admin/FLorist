@@ -103,7 +103,7 @@ export function StartJobButton({ rowId, jobId }: { rowId: number; jobId: string 
                 title="Start"
             >
                 {isLoading || response ? (
-                    <span class="spinner-border spinner-border-sm align-middle"></span>
+                    <span className="spinner-border spinner-border-sm align-middle"></span>
                 ) : (
                     <i className="material-icons text-sm">play_circle_outline</i>
                 )}
@@ -126,7 +126,7 @@ export function JobDetailsButton({
             <Link
                 data-testid={`job-details-button-${status}-${rowId}`}
                 className="btn btn-primary btn-sm mb-0"
-                alt="Details"
+                title="Details"
                 href={{
                     pathname: "jobs/details",
                     query: { id: jobId },
@@ -134,6 +134,49 @@ export function JobDetailsButton({
             >
                 <i className="material-icons text-sm">settings</i>
             </Link>
+        </div>
+    );
+}
+
+export function StopJobButton({ rowId, jobId }: { rowId: number; jobId: string }): ReactElement {
+    const { post, response, isLoading, error } = usePost();
+
+    const handleClickStopJobButton = async () => {
+        event.preventDefault();
+
+        if (isLoading) {
+            // Preventing double submit if already in progress
+            return;
+        }
+        const url = `/api/server/job/stop/${jobId}`;
+        await post(url, JSON.stringify({}));
+    };
+
+    // Only refresh the job data if there is an error or response
+    useEffect(() => refreshJobsByJobStatus(Object.keys(validStatuses)), [error, response]);
+
+    let buttonClasses = "btn btn-sm mb-0 ";
+    if (isLoading) {
+        // If is loading disable the button to avoid double submit.
+        buttonClasses += "btn-secondary disabled";
+    } else {
+        buttonClasses += "btn-primary";
+    }
+
+    return (
+        <div>
+            <button
+                data-testid={`stop-training-button-${rowId}`}
+                onClick={handleClickStopJobButton}
+                className={buttonClasses}
+                title="Stop"
+            >
+                {isLoading ? (
+                    <span className="spinner-border spinner-border-sm align-middle"></span>
+                ) : (
+                    <i className="material-icons text-sm">stop</i>
+                )}
+            </button>
         </div>
     );
 }
@@ -174,6 +217,7 @@ export function StatusTable({ data, status }: { data: Array<JobData>; status: St
                                 <th className="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">
                                     Client Service Addresses
                                 </th>
+                                <th width="50"></th>
                                 <th width="50"></th>
                                 <th width="100"></th>
                             </tr>
@@ -251,7 +295,13 @@ export function TableRow({
             <td>
                 <JobDetailsButton rowId={rowId} jobId={jobId} status={status} />
             </td>
-            <td>{validStatuses[status] === "Not Started" ? <StartJobButton rowId={rowId} jobId={jobId} /> : null}</td>
+            <td>
+                {validStatuses[status] === "In Progress" ? (
+                    <StopJobButton rowId={rowId} jobId={jobId} />
+                ) : validStatuses[status] === "Not Started" ? (
+                    <StartJobButton rowId={rowId} jobId={jobId} />
+                ) : null}
+            </td>
         </tr>
     );
 }

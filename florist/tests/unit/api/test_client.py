@@ -1,6 +1,7 @@
 """Tests for FLorist's client FastAPI endpoints."""
 import json
 import os
+import signal
 from unittest.mock import ANY, Mock, patch
 
 from florist.api import client
@@ -25,14 +26,18 @@ def test_start_success(mock_launch_client: Mock) -> None:
     test_data_path = "test/data/path"
     test_redis_host = "test-redis-host"
     test_redis_port = "test-redis-port"
+    test_client_pid = 1234
+
+    mock_client_process = Mock()
+    mock_client_process.pid = test_client_pid
+    mock_launch_client.return_value = mock_client_process
 
     response = client.start(test_server_address, test_client, test_data_path, test_redis_host, test_redis_port)
 
     assert response.status_code == 200
     json_body = json.loads(response.body.decode())
     log_file_path = str(get_client_log_file_path(json_body["uuid"]))
-
-    assert json_body == {"uuid": ANY, "log_file_path": log_file_path}
+    assert json_body == {"uuid": ANY, "pid": str(test_client_pid), "log_file_path": log_file_path}
 
     mock_launch_client.assert_called_once_with(ANY, test_server_address, log_file_path)
 
@@ -139,3 +144,29 @@ def test_get_log() -> None:
     assert response.body.decode() == f"\"{test_log_file_content}\""
 
     os.remove(test_log_file_path)
+
+@patch("florist.api.client.os.kill")
+def test_stop_success(mock_kill: Mock) -> None:
+    test_pid = 1234
+
+    response = client.stop(str(test_pid))
+
+    assert response.status_code == 200
+    assert json.loads(response.body.decode()) == {"status": "success"}
+    mock_kill.assert_called_once_with(test_pid, signal.SIGTERM)
+
+
+def test_stop_fail_no_pid() -> None:
+    response = client.stop("")
+
+    assert response.status_code == 400
+    assert json.loads(response.body.decode()) == {"error": "PID is empty or None."}
+
+
+def test_stop_fail_exception() -> None:
+    test_pid = "inexistant-pid"
+
+    response = client.stop(test_pid)
+
+    assert response.status_code == 500
+    assert json.loads(response.body.decode()) == {"error": f"invalid literal for int() with base 10: '{test_pid}'"}

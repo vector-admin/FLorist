@@ -41,6 +41,7 @@ function makeTestJob(): JobData {
         server_address: "test-server-address",
         redis_host: "test-redis-host",
         redis_port: "test-redis-port",
+        error_message: "test-error-message",
         server_config: JSON.stringify({
             test_attribute_1: "test-value-1",
             test_attribute_2: "test-value-2",
@@ -246,6 +247,25 @@ describe("Job Details Page", () => {
             expect(iconComponent).toHaveTextContent("");
         });
     });
+    describe("Error Message", () => {
+        it("Should render when error message is present", () => {
+            const testJob = makeTestJob();
+            setupGetJobMock(testJob);
+            const { container } = render(<JobDetails />);
+
+            const errorMessageComponent = container.querySelector("#job-details-error-message");
+            expect(errorMessageComponent).toHaveTextContent(testJob.error_message);
+        });
+        it("Should render when error message is present", () => {
+            const testJob = makeTestJob();
+            testJob.error_message = null;
+            setupGetJobMock(testJob);
+            const { container } = render(<JobDetails />);
+
+            const errorMessageComponent = container.querySelector("#job-details-error-message");
+            expect(errorMessageComponent).toBeNull();
+        });
+    });
     describe("Job progress", () => {
         it("Does not display when there are no server metrics", () => {
             const testJob = makeTestJob();
@@ -345,6 +365,7 @@ describe("Job Details Page", () => {
             });
             it("Should render the contents correctly", () => {
                 const testJob = makeTestJob();
+                testJob.status = "IN_PROGRESS";
                 const serverMetrics = JSON.parse(testJob.server_metrics);
                 setupGetJobMock(testJob);
                 setupURLSpyMock(urlSpy);
@@ -553,6 +574,7 @@ describe("Job Details Page", () => {
             describe("Clients", () => {
                 it("Renders their progress bars correctly", () => {
                     const testJob = makeTestJob();
+                    testJob.status = "IN_PROGRESS";
                     setupGetJobMock(testJob);
                     const { container } = render(<JobDetails />);
                     const clientsProgress = container.querySelectorAll(".job-client-progress");
@@ -567,6 +589,7 @@ describe("Job Details Page", () => {
                 });
                 it("Renders the progress details correctly", () => {
                     const testJob = makeTestJob();
+                    testJob.status = "IN_PROGRESS";
                     setupGetJobMock(testJob);
                     setupURLSpyMock(urlSpy);
                     const { container } = render(<JobDetails />);

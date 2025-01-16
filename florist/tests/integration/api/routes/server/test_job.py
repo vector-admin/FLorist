@@ -31,6 +31,8 @@ async def test_new_job(mock_request) -> None:
         "server_metrics": None,
         "server_uuid": None,
         "server_log_file_path": None,
+        "server_pid": None,
+        "error_message": None,
     }
 
     test_job = Job(
@@ -45,6 +47,8 @@ async def test_new_job(mock_request) -> None:
         server_metrics="test-server-metrics",
         server_uuid="test-server-uuid",
         server_log_file_path="test-server-log-file-path",
+        server_pid="test-server-pid",
+        error_message="test-error-message",
         clients_info=[
             ClientInfo(
                 client=Client.MNIST,
@@ -55,6 +59,7 @@ async def test_new_job(mock_request) -> None:
                 metrics="test-client-metrics-1",
                 uuid="test-client-uuid-1",
                 log_file_path="test-log-file-path-1",
+                pid="test-client-pid-1",
             ),
             ClientInfo(
                 client=Client.MNIST,
@@ -65,6 +70,7 @@ async def test_new_job(mock_request) -> None:
                 metrics="test-client-metrics-2",
                 uuid="test-client-uuid-2",
                 log_file_path="test-log-file-path-2",
+                pid="test-client-pid-2",
             ),
         ]
     )
@@ -82,6 +88,8 @@ async def test_new_job(mock_request) -> None:
         "server_uuid": test_job.server_uuid,
         "server_metrics": test_job.server_metrics,
         "server_log_file_path": test_job.server_log_file_path,
+        "server_pid": test_job.server_pid,
+        "error_message": test_job.error_message,
         "clients_info": [
             {
                 "_id": ANY,
@@ -93,6 +101,7 @@ async def test_new_job(mock_request) -> None:
                 "uuid": test_job.clients_info[0].uuid,
                 "metrics": test_job.clients_info[0].metrics,
                 "log_file_path": test_job.clients_info[0].log_file_path,
+                "pid": test_job.clients_info[0].pid,
             }, {
                 "_id": ANY,
                 "client": test_job.clients_info[1].client.value,
@@ -103,6 +112,7 @@ async def test_new_job(mock_request) -> None:
                 "uuid": test_job.clients_info[1].uuid,
                 "metrics": test_job.clients_info[1].metrics,
                 "log_file_path": test_job.clients_info[1].log_file_path,
+                "pid": test_job.clients_info[1].pid,
             },
         ],
     }
@@ -121,6 +131,8 @@ async def test_list_jobs_with_status(mock_request) -> None:
         server_metrics="test-server-metrics1",
         server_uuid="test-server-uuid1",
         server_log_file_path="test-server-log-file-path1",
+        server_pid="test-server-pid1",
+        error_message="test-error-message1",
         clients_info=[
             ClientInfo(
                 client=Client.MNIST,
@@ -131,6 +143,7 @@ async def test_list_jobs_with_status(mock_request) -> None:
                 metrics="test-client-metrics-1-1",
                 uuid="test-client-uuid-1-1",
                 log_file_path="test-log-file-path-1-1",
+                pid="test-client-pid-1-1",
             ),
             ClientInfo(
                 client=Client.MNIST,
@@ -141,6 +154,7 @@ async def test_list_jobs_with_status(mock_request) -> None:
                 metrics="test-client-metrics-2-1",
                 uuid="test-client-uuid-2-1",
                 log_file_path="test-log-file-path-2-1",
+                pid="test-client-pid-2-1",
             ),
         ]
     )
@@ -157,6 +171,8 @@ async def test_list_jobs_with_status(mock_request) -> None:
         server_metrics="test-server-metrics2",
         server_uuid="test-server-uuid2",
         server_log_file_path="test-server-log-file-path2",
+        server_pid="test-server-pid2",
+        error_message="test-error-message2",
         clients_info=[
             ClientInfo(
                 client=Client.MNIST,
@@ -167,6 +183,7 @@ async def test_list_jobs_with_status(mock_request) -> None:
                 metrics="test-client-metrics-1-2",
                 uuid="test-client-uuid-1-2",
                 log_file_path="test-log-file-path-1-2",
+                pid="test-client-pid-1-2",
             ),
             ClientInfo(
                 client=Client.MNIST,
@@ -177,6 +194,7 @@ async def test_list_jobs_with_status(mock_request) -> None:
                 metrics="test-client-metrics-2-2",
                 uuid="test-client-uuid-2-2",
                 log_file_path="test-log-file-path-2-2",
+                pid="test-client-pid-2-2",
             ),
         ]
     )
@@ -193,6 +211,8 @@ async def test_list_jobs_with_status(mock_request) -> None:
         server_metrics="test-server-metrics3",
         server_uuid="test-server-uuid3",
         server_log_file_path="test-server-log-file-path3",
+        server_pid="test-server-pid3",
+        error_message="test-error-message3",
         clients_info=[
             ClientInfo(
                 client=Client.MNIST,
@@ -203,6 +223,7 @@ async def test_list_jobs_with_status(mock_request) -> None:
                 metrics="test-client-metrics-1-3",
                 uuid="test-client-uuid-1-3",
                 log_file_path="test-log-file-path-1-3",
+                pid="test-client-pid-1-3",
             ),
             ClientInfo(
                 client=Client.MNIST,
@@ -213,6 +234,7 @@ async def test_list_jobs_with_status(mock_request) -> None:
                 metrics="test-client-metrics-2-3",
                 uuid="test-client-uuid-2-3",
                 log_file_path="test-log-file-path-2-3",
+                pid="test-client-pid-2-3",
             ),
         ]
     )
@@ -229,6 +251,8 @@ async def test_list_jobs_with_status(mock_request) -> None:
         server_metrics="test-server-metrics4",
         server_uuid="test-server-uuid4",
         server_log_file_path="test-server-log-file-path4",
+        server_pid="test-server-pid4",
+        error_message="test-error-message4",
         clients_info=[
             ClientInfo(
                 client=Client.MNIST,
@@ -239,6 +263,7 @@ async def test_list_jobs_with_status(mock_request) -> None:
                 metrics="test-client-metrics-1-4",
                 uuid="test-client-uuid-1-4",
                 log_file_path="test-log-file-path-1-4",
+                pid="test-client-pid-1-4",
             ),
             ClientInfo(
                 client=Client.MNIST,
@@ -249,6 +274,7 @@ async def test_list_jobs_with_status(mock_request) -> None:
                 metrics="test-client-metrics-2-4",
                 uuid="test-client-uuid-2-4",
                 log_file_path="test-log-file-path-2-4",
+                pid="test-client-pid-2-4",
             ),
         ]
     )
@@ -279,6 +305,8 @@ async def test_list_jobs_with_status(mock_request) -> None:
         "server_metrics": test_job1.server_metrics,
         "server_uuid": test_job1.server_uuid,
         "server_log_file_path": test_job1.server_log_file_path,
+        "server_pid": test_job1.server_pid,
+        "error_message": test_job1.error_message,
         "clients_info": [
             {
                 "_id": ANY,
@@ -290,6 +318,7 @@ async def test_list_jobs_with_status(mock_request) -> None:
                 "metrics": test_job1.clients_info[0].metrics,
                 "uuid": test_job1.clients_info[0].uuid,
                 "log_file_path": test_job1.clients_info[0].log_file_path,
+                "pid": test_job1.clients_info[0].pid,
             }, {
                 "_id": ANY,
                 "client": test_job1.clients_info[1].client.value,
@@ -300,6 +329,7 @@ async def test_list_jobs_with_status(mock_request) -> None:
                 "metrics": test_job1.clients_info[1].metrics,
                 "uuid": test_job1.clients_info[1].uuid,
                 "log_file_path": test_job1.clients_info[1].log_file_path,
+                "pid": test_job1.clients_info[1].pid,
             },
         ],
     }
@@ -316,6 +346,8 @@ async def test_list_jobs_with_status(mock_request) -> None:
         "server_metrics": test_job2.server_metrics,
         "server_uuid": test_job2.server_uuid,
         "server_log_file_path": test_job2.server_log_file_path,
+        "server_pid": test_job2.server_pid,
+        "error_message": test_job2.error_message,
         "clients_info": [
             {
                 "_id": ANY,
@@ -327,6 +359,7 @@ async def test_list_jobs_with_status(mock_request) -> None:
                 "metrics": test_job2.clients_info[0].metrics,
                 "uuid": test_job2.clients_info[0].uuid,
                 "log_file_path": test_job2.clients_info[0].log_file_path,
+                "pid": test_job2.clients_info[0].pid,
             }, {
                 "_id": ANY,
                 "client": test_job2.clients_info[1].client.value,
@@ -337,6 +370,7 @@ async def test_list_jobs_with_status(mock_request) -> None:
                 "metrics": test_job2.clients_info[1].metrics,
                 "uuid": test_job2.clients_info[1].uuid,
                 "log_file_path": test_job2.clients_info[1].log_file_path,
+                "pid": test_job2.clients_info[1].pid,
             },
         ],
     }
@@ -353,6 +387,8 @@ async def test_list_jobs_with_status(mock_request) -> None:
         "server_metrics": test_job3.server_metrics,
         "server_uuid": test_job3.server_uuid,
         "server_log_file_path": test_job3.server_log_file_path,
+        "server_pid": test_job3.server_pid,
+        "error_message": test_job3.error_message,
         "clients_info": [
             {
                 "_id": ANY,
@@ -364,6 +400,7 @@ async def test_list_jobs_with_status(mock_request) -> None:
                 "metrics": test_job3.clients_info[0].metrics,
                 "uuid": test_job3.clients_info[0].uuid,
                 "log_file_path": test_job3.clients_info[0].log_file_path,
+                "pid": test_job3.clients_info[0].pid,
             }, {
                 "_id": ANY,
                 "client": test_job3.clients_info[1].client.value,
@@ -374,6 +411,7 @@ async def test_list_jobs_with_status(mock_request) -> None:
                 "metrics": test_job3.clients_info[1].metrics,
                 "uuid": test_job3.clients_info[1].uuid,
                 "log_file_path": test_job3.clients_info[1].log_file_path,
+                "pid": test_job3.clients_info[1].pid,
             },
         ],
     }
@@ -390,6 +428,8 @@ async def test_list_jobs_with_status(mock_request) -> None:
         "server_metrics": test_job4.server_metrics,
         "server_uuid": test_job4.server_uuid,
         "server_log_file_path": test_job4.server_log_file_path,
+        "server_pid": test_job4.server_pid,
+        "error_message": test_job4.error_message,
         "clients_info": [
             {
                 "_id": ANY,
@@ -401,6 +441,7 @@ async def test_list_jobs_with_status(mock_request) -> None:
                 "metrics": test_job4.clients_info[0].metrics,
                 "uuid": test_job4.clients_info[0].uuid,
                 "log_file_path": test_job4.clients_info[0].log_file_path,
+                "pid": test_job4.clients_info[0].pid,
             }, {
                 "_id": ANY,
                 "client": test_job4.clients_info[1].client.value,
@@ -411,6 +452,7 @@ async def test_list_jobs_with_status(mock_request) -> None:
                 "metrics": test_job4.clients_info[1].metrics,
                 "uuid": test_job4.clients_info[1].uuid,
                 "log_file_path": test_job4.clients_info[1].log_file_path,
+                "pid": test_job4.clients_info[1].pid,
             },
         ],
     }
