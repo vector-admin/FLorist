@@ -6,7 +6,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { ReactElement } from "react/React";
 
-import { useGetJob } from "../hooks";
+import { useGetJob, getServerLogsKey, getClientLogsKey, useSWRWithKey } from "../hooks";
 import { validStatuses, ClientInfo } from "../definitions";
 import loading_gif from "../../assets/img/loading.gif";
 
@@ -111,7 +111,13 @@ export function JobDetailsBody(): ReactElement {
                 </div>
             </div>
 
-            <JobProgressBar metrics={job.server_metrics} totalEpochs={totalEpochs} status={job.status} />
+            <JobProgressBar
+                metrics={job.server_metrics}
+                totalEpochs={totalEpochs}
+                status={job.status}
+                jobId={job._id}
+                clientIndex={null}
+            />
 
             <JobDetailsTable
                 Component={JobDetailsServerConfigTable}
@@ -123,7 +129,7 @@ export function JobDetailsBody(): ReactElement {
                 Component={JobDetailsClientsInfoTable}
                 title="Clients Configuration"
                 data={job.clients_info}
-                properties={{ totalEpochs }}
+                properties={{ totalEpochs, jobId: job._id }}
             />
         </div>
     );
@@ -175,11 +181,13 @@ export function JobProgressBar({
     metrics,
     totalEpochs,
     status,
+    jobId,
     clientIndex,
 }: {
     metrics: string;
     totalEpochs: number;
     status: status;
+    jobId: string;
     clientIndex: number;
 }): ReactElement {
     const [collapsed, setCollapsed] = useState(true);
@@ -257,7 +265,7 @@ export function JobProgressBar({
                                 <strong>{Math.floor(progressPercent)}%</strong>
                             </div>
                         </div>
-                        <div className="job-details-toggle col-sm job-expand-button">
+                        <div className="job-details-toggle col-sm job-details-button">
                             <a className="btn btn-link" onClick={() => setCollapsed(!collapsed)}>
                                 {collapsed ? (
                                     <span>
@@ -274,7 +282,9 @@ export function JobProgressBar({
                         </div>
                     </div>
                     <div className="row pb-2">
-                        {!collapsed ? <JobProgressDetails metrics={metricsJson} clientIndex={clientIndex} /> : null}
+                        {!collapsed ? (
+                            <JobProgressDetails metrics={metricsJson} jobId={jobId} clientIndex={clientIndex} />
+                        ) : null}
                     </div>
                 </div>
             </div>
@@ -282,7 +292,17 @@ export function JobProgressBar({
     );
 }
 
-export function JobProgressDetails({ metrics, clientIndex }: { metrics: Object; clientIndex: number }): ReactElement {
+export function JobProgressDetails({
+    metrics,
+    jobId,
+    clientIndex,
+}: {
+    metrics: Object;
+    jobId: string;
+    clientIndex: number;
+}): ReactElement {
+    const [showLogs, setShowLogs] = useState(false);
+
     if (!metrics) {
         return null;
     }
@@ -313,8 +333,13 @@ export function JobProgressDetails({ metrics, clientIndex }: { metrics: Object; 
         }
     }
 
-    let metricsFileName = metrics.host_type === "server" ? "server-metrics.json" : `client-metrics-${clientIndex}.json`;
-    let metricsFileURL = window.URL.createObjectURL(new Blob([JSON.stringify(metrics, null, 4)]));
+    const metricsFileName =
+        metrics.host_type === "server" ? "server-metrics.json" : `client-metrics-${clientIndex}.json`;
+    let metricsFileURL = null;
+    if (window.URL.createObjectURL) {
+        // adding this check here to avoid overly complicated mocking in tests
+        metricsFileURL = window.URL.createObjectURL(new Blob([JSON.stringify(metrics, null, 4)]));
+    }
 
     return (
         <div className="job-progress-detail">
@@ -346,6 +371,16 @@ export function JobProgressDetails({ metrics, clientIndex }: { metrics: Object; 
             ))}
 
             <div className="row">
+                <div className="col-sm-2">
+                    <strong className="text-dark">Logs:</strong>
+                </div>
+                <div className="col-sm job-details-button">
+                    <a className="btn btn-link show-logs-button" onClick={() => setShowLogs(true)}>
+                        Show Logs
+                    </a>
+                </div>
+            </div>
+            <div className="row">
                 <div className="col-sm-4 job-details-download-button">
                     <a
                         className="btn btn-link download-metrics-button"
@@ -358,6 +393,15 @@ export function JobProgressDetails({ metrics, clientIndex }: { metrics: Object; 
                     </a>
                 </div>
             </div>
+
+            {showLogs ? (
+                <JobLogsModal
+                    hostType={metrics.host_type}
+                    jobId={jobId}
+                    clientIndex={clientIndex}
+                    setShowLogs={setShowLogs}
+                />
+            ) : null}
         </div>
     );
 }
@@ -375,7 +419,7 @@ export function JobProgressRound({ roundMetrics, index }: { roundMetrics: Object
                 <div className="col-sm-2">
                     <strong className="text-dark">Round {index + 1}</strong>
                 </div>
-                <div className={`job-round-toggle-${index} col-sm job-expand-button`}>
+                <div className={`job-round-toggle-${index} col-sm job-details-button`}>
                     <a className="btn btn-link" onClick={() => setCollapsed(!collapsed)}>
                         {collapsed ? (
                             <span>
@@ -668,6 +712,7 @@ export function JobDetailsClientsInfoTable({
                                         <JobProgressBar
                                             metrics={clientInfo.metrics}
                                             totalEpochs={properties.totalEpochs}
+                                            jobId={properties.jobId}
                                             clientIndex={i}
                                         />
                                     </span>
@@ -678,6 +723,69 @@ export function JobDetailsClientsInfoTable({
                 })}
             </tbody>
         </table>
+    );
+}
+
+export function JobLogsModal({
+    hostType,
+    jobId,
+    clientIndex,
+    showLogs,
+    setShowLogs,
+}: {
+    type: string;
+    jobId: string;
+    clientIndex: number;
+    setShowLogs: Callable;
+}): ReactElement {
+    let apiKey, fileName;
+    if (hostType === "server") {
+        apiKey = getServerLogsKey(jobId);
+        fileName = "server.log";
+    }
+    if (hostType === "client") {
+        apiKey = getClientLogsKey(jobId, clientIndex);
+        fileName = `client-${clientIndex}.log`;
+    }
+
+    const { data, error, isLoading, isValidating, mutate } = useSWRWithKey(apiKey);
+
+    let dataURL = null;
+    if (data) {
+        dataURL = window.URL.createObjectURL(new Blob([data]));
+    }
+
+    return (
+        <div className="log-viewer modal show" tabIndex="-1">
+            <div className="modal-dialog modal-dialog-scrollable">
+                <div className="modal-content">
+                    <div className="modal-header">
+                        <h1 className="modal-title fs-5">Log Viewer</h1>
+                        <a className="refresh-button" onClick={() => mutate(apiKey)}>
+                            <i className="material-icons">refresh</i>
+                        </a>
+                        <a className="download-button" title="Download" href={dataURL} download={fileName}>
+                            <i className="material-icons">download</i>
+                        </a>
+                        <button type="button" className="btn-close" onClick={() => setShowLogs(false)}>
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+
+                    <div className="modal-body">
+                        {isLoading || isValidating ? (
+                            <div className="loading-container">
+                                <Image src={loading_gif} alt="Loading Logs" height={64} width={64} />
+                            </div>
+                        ) : error ? (
+                            "Error loading logs"
+                        ) : (
+                            data
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
     );
 }
 

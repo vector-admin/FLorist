@@ -617,11 +617,12 @@ const observer = new MutationObserver((mutationList) => {
         if (mutationList[i].type === "childList") {
             for (var j = 0; j < mutationList[i].addedNodes.length; j++) {
                 const addedNode = mutationList[i].addedNodes[j];
-                const inputs = addedNode.querySelectorAll("select");
-                const selects = addedNode.querySelectorAll("input");
-                const btns = addedNode.querySelectorAll(".btn");
-
-                hasTargetElementTypes = inputs.length > 0 || selects.length > 0 || btns.length > 0;
+                if (addedNode.querySelectorAll) {
+                    const inputs = addedNode.querySelectorAll("select");
+                    const selects = addedNode.querySelectorAll("input");
+                    const btns = addedNode.querySelectorAll(".btn");
+                    hasTargetElementTypes = inputs.length > 0 || selects.length > 0 || btns.length > 0;
+                }
             }
         }
     }

@@ -3,7 +3,7 @@ import { render, cleanup } from "@testing-library/react";
 import { describe, it, expect, afterEach } from "@jest/globals";
 import { act } from "react-dom/test-utils";
 
-import { useGetJob } from "../../../../../app/jobs/hooks";
+import { useGetJob, useSWRWithKey, getServerLogsKey, getClientLogsKey } from "../../../../../app/jobs/hooks";
 import { validStatuses, JobData } from "../../../../../app/jobs/definitions";
 import JobDetails, { getTimeString } from "../../../../../app/jobs/details/page";
 
@@ -25,6 +25,17 @@ function setupGetJobMock(data: JobData, isLoading: boolean = false, error = null
     useGetJob.mockImplementation((jobId: string) => {
         return { data, error, isLoading };
     });
+}
+
+function setupUseSWRWithKeyMock({ data, isLoading = false, error = null, isValidating = false }) {
+    getServerLogsKey.mockImplementation((jobId) => `test server logs key: ${jobId}`);
+    getClientLogsKey.mockImplementation((jobId, clientIndex) => `test client logs key: ${jobId}, ${clientIndex}`);
+
+    const mutateMock = jest.fn();
+    useSWRWithKey.mockImplementation((apiKey: string) => {
+        return { data, error, isLoading, isValidating, mutate: mutateMock };
+    });
+    return mutateMock;
 }
 
 function setupURLSpyMock(urlSpy, testURL: string = "foo") {
@@ -392,6 +403,13 @@ describe("Job Details Page", () => {
                 const round3 = jobProgressDetailsComponent.children[8].children[0];
                 expect(round3.children[0]).toHaveTextContent("Round 3");
                 expect(round3.children[1]).toHaveClass("job-round-toggle-2");
+
+                // show logs
+                const showLogs = jobProgressDetailsComponent.children[9];
+                expect(showLogs.children[0]).toHaveTextContent("Logs:");
+                const showLogsButton = showLogs.children[1].children[0];
+                expect(showLogsButton.tagName.toLowerCase()).toBe("a");
+                expect(showLogsButton).toHaveTextContent("Show Logs");
             });
             describe("Rounds", () => {
                 it("Should be collapsed by default", () => {
@@ -496,6 +514,195 @@ describe("Job Details Page", () => {
                     expect(customPropertyObjectValue.children[0].children[1]).toHaveTextContent(
                         serverMetrics.custom_property_object.custom_property_object_value,
                     );
+                });
+            });
+            describe("Logs Modal", () => {
+                it("Should be hidden by default", () => {
+                    const testJob = makeTestJob();
+                    setupGetJobMock(testJob);
+                    const { container } = render(<JobDetails />);
+
+                    const progressToggleButton = container.querySelector(".job-details-toggle a");
+                    act(() => progressToggleButton.click());
+
+                    const jobProgressDetailsComponent = container.querySelector(".job-progress-detail");
+                    expect(jobProgressDetailsComponent.querySelector(".log-viewer")).toBeNull();
+                });
+                it("Should render the server logs modal correctly when clicked", () => {
+                    const testJob = makeTestJob();
+                    setupGetJobMock(testJob);
+                    setupURLSpyMock(urlSpy, "test url");
+                    const { container } = render(<JobDetails />);
+
+                    const progressToggleButton = container.querySelector(".job-details-toggle a");
+                    act(() => progressToggleButton.click());
+
+                    const testLogContents = "[INFO] test log contents\n[INFO] second line";
+                    setupUseSWRWithKeyMock({ data: testLogContents });
+                    const testURL = "test url";
+                    urlSpy = setupURLSpyMock(urlSpy, testURL);
+
+                    const jobProgressDetailsComponent = container.querySelector(".job-progress-detail");
+                    const showLogsButton = jobProgressDetailsComponent.querySelector(".show-logs-button");
+                    act(() => showLogsButton.click());
+
+                    expect(useSWRWithKey).toHaveBeenCalledWith(getServerLogsKey(testJob._id));
+                    expect(urlSpy.createObjectURL).toHaveBeenCalledWith(new Blob([testLogContents]));
+
+                    const logViewerComponent = jobProgressDetailsComponent.querySelector(".log-viewer");
+                    expect(logViewerComponent).toHaveClass("modal", "show");
+
+                    const downloadButton = logViewerComponent.querySelector(".download-button");
+                    expect(downloadButton.getAttribute("href")).toBe(testURL);
+                    expect(downloadButton.getAttribute("download")).toBe("server.log");
+
+                    const modalBody = logViewerComponent.querySelector(".modal-body");
+                    expect(modalBody).toHaveTextContent(testLogContents.replace(/\n/g, " "));
+                });
+                it("Should render the client logs modal correctly when clicked", () => {
+                    const testJob = makeTestJob();
+                    setupGetJobMock(testJob);
+                    setupURLSpyMock(urlSpy, "test url");
+                    const { container } = render(<JobDetails />);
+
+                    const testClientIndex = 1;
+                    let toggleButton = container.querySelectorAll(".job-client-progress .job-details-toggle a")[
+                        testClientIndex
+                    ];
+                    act(() => toggleButton.click());
+
+                    const testLogContents = "[INFO] test log contents\n[INFO] second line";
+                    setupUseSWRWithKeyMock({ data: testLogContents });
+                    const testURL = "test url";
+                    urlSpy = setupURLSpyMock(urlSpy, testURL);
+
+                    const jobProgressDetailsComponent = container.querySelector(
+                        `#job-details-client-config-progress-${testClientIndex} .job-progress-detail`,
+                    );
+                    const showLogsButton = jobProgressDetailsComponent.querySelector(".show-logs-button");
+                    act(() => showLogsButton.click());
+
+                    expect(useSWRWithKey).toHaveBeenCalledWith(getClientLogsKey(testJob._id, testClientIndex));
+                    expect(urlSpy.createObjectURL).toHaveBeenCalledWith(new Blob([testLogContents]));
+
+                    const logViewerComponent = jobProgressDetailsComponent.querySelector(".log-viewer");
+                    expect(logViewerComponent).toHaveClass("modal", "show");
+
+                    const downloadButton = logViewerComponent.querySelector(".download-button");
+                    expect(downloadButton.getAttribute("href")).toBe(testURL);
+                    expect(downloadButton.getAttribute("download")).toBe(`client-${testClientIndex}.log`);
+
+                    const modalBody = logViewerComponent.querySelector(".modal-body");
+                    expect(modalBody).toHaveTextContent(testLogContents.replace(/\n/g, " "));
+                });
+                it("Should display spinner when loading", () => {
+                    const testJob = makeTestJob();
+                    setupGetJobMock(testJob);
+                    const { container } = render(<JobDetails />);
+
+                    const progressToggleButton = container.querySelector(".job-details-toggle a");
+                    act(() => progressToggleButton.click());
+
+                    setupUseSWRWithKeyMock({ data: null, isLoading: true });
+
+                    const jobProgressDetailsComponent = container.querySelector(".job-progress-detail");
+                    const showLogsButton = jobProgressDetailsComponent.querySelector(".show-logs-button");
+                    act(() => showLogsButton.click());
+
+                    expect(useSWRWithKey).toHaveBeenCalledWith(getServerLogsKey(testJob._id));
+
+                    const logViewerComponent = jobProgressDetailsComponent.querySelector(".log-viewer");
+                    const modalBody = logViewerComponent.querySelector(".modal-body");
+                    const loadingComponent = modalBody.querySelector("div.loading-container > img");
+                    expect(loadingComponent.getAttribute("alt")).toBe("Loading Logs");
+                });
+                it("Should display spinner when validating", () => {
+                    const testJob = makeTestJob();
+                    setupGetJobMock(testJob);
+                    const { container } = render(<JobDetails />);
+
+                    const progressToggleButton = container.querySelector(".job-details-toggle a");
+                    act(() => progressToggleButton.click());
+
+                    setupUseSWRWithKeyMock({ data: null, isValidating: true });
+
+                    const jobProgressDetailsComponent = container.querySelector(".job-progress-detail");
+                    const showLogsButton = jobProgressDetailsComponent.querySelector(".show-logs-button");
+                    act(() => showLogsButton.click());
+
+                    expect(useSWRWithKey).toHaveBeenCalledWith(getServerLogsKey(testJob._id));
+
+                    const logViewerComponent = jobProgressDetailsComponent.querySelector(".log-viewer");
+                    const modalBody = logViewerComponent.querySelector(".modal-body");
+                    const loadingComponent = modalBody.querySelector("div.loading-container > img");
+                    expect(loadingComponent.getAttribute("alt")).toBe("Loading Logs");
+                });
+                it("Should display error message", () => {
+                    const testJob = makeTestJob();
+                    setupGetJobMock(testJob);
+                    setupURLSpyMock(urlSpy, "test url");
+                    const { container } = render(<JobDetails />);
+
+                    const progressToggleButton = container.querySelector(".job-details-toggle a");
+                    act(() => progressToggleButton.click());
+
+                    setupUseSWRWithKeyMock({ data: null, error: "error!" });
+
+                    const jobProgressDetailsComponent = container.querySelector(".job-progress-detail");
+                    const showLogsButton = jobProgressDetailsComponent.querySelector(".show-logs-button");
+                    act(() => showLogsButton.click());
+
+                    expect(useSWRWithKey).toHaveBeenCalledWith(getServerLogsKey(testJob._id));
+
+                    const logViewerComponent = jobProgressDetailsComponent.querySelector(".log-viewer");
+                    const modalBody = logViewerComponent.querySelector(".modal-body");
+                    expect(modalBody).toHaveTextContent("Error loading logs");
+                });
+                it("Clicking refresh should call mutate", () => {
+                    const testJob = makeTestJob();
+                    setupGetJobMock(testJob);
+                    setupURLSpyMock(urlSpy, "test url");
+                    const { container } = render(<JobDetails />);
+
+                    const progressToggleButton = container.querySelector(".job-details-toggle a");
+                    act(() => progressToggleButton.click());
+
+                    const mutateMock = setupUseSWRWithKeyMock({ data: null });
+
+                    const jobProgressDetailsComponent = container.querySelector(".job-progress-detail");
+                    const showLogsButton = jobProgressDetailsComponent.querySelector(".show-logs-button");
+                    act(() => showLogsButton.click());
+
+                    expect(useSWRWithKey).toHaveBeenCalledWith(getServerLogsKey(testJob._id));
+
+                    const logViewerComponent = jobProgressDetailsComponent.querySelector(".log-viewer");
+                    const refreshButton = logViewerComponent.querySelector(".refresh-button");
+                    act(() => refreshButton.click());
+
+                    expect(mutateMock).toHaveBeenCalledWith(getServerLogsKey(testJob._id));
+                });
+                it("Clicking close should close the modal", () => {
+                    const testJob = makeTestJob();
+                    setupGetJobMock(testJob);
+                    setupURLSpyMock(urlSpy, "test url");
+                    const { container } = render(<JobDetails />);
+
+                    const progressToggleButton = container.querySelector(".job-details-toggle a");
+                    act(() => progressToggleButton.click());
+
+                    const mutateMock = setupUseSWRWithKeyMock({ data: null });
+
+                    const jobProgressDetailsComponent = container.querySelector(".job-progress-detail");
+                    const showLogsButton = jobProgressDetailsComponent.querySelector(".show-logs-button");
+                    act(() => showLogsButton.click());
+
+                    expect(useSWRWithKey).toHaveBeenCalledWith(getServerLogsKey(testJob._id));
+
+                    const logViewerComponent = jobProgressDetailsComponent.querySelector(".log-viewer");
+                    const closeButton = logViewerComponent.querySelector(".btn-close");
+                    act(() => closeButton.click());
+
+                    expect(jobProgressDetailsComponent.querySelector(".log-viewer")).toBeNull();
                 });
             });
             describe("Download metrics", () => {

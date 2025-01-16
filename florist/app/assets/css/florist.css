@@ -76,7 +76,7 @@
     background-color: lightgray !important;
 }
 
-.job-expand-button a.btn {
+.job-details-button a.btn {
     padding: 0;
     margin: 0;
 }
@@ -152,4 +152,45 @@
 
 .job-client-progress .job-progress-bar .progress .progress-bar {
     height: max-content;
+}
+
+.log-viewer.show {
+    display: block;
+    z-index: 10000;
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.log-viewer .modal-dialog {
+    max-width: 90%;
+}
+
+.log-viewer .modal-content {
+    height: 100%;
+}
+
+.log-viewer .btn-close {
+    color: black;
+    font-size: 30px;
+    margin-top: -25px;
+}
+
+.log-viewer a.refresh-button,
+.log-viewer a.download-button {
+    cursor: pointer;
+    margin-left: 15px;
+    margin-top: 10px;
+}
+
+.log-viewer .modal-body {
+    white-space: pre;
+    font-family: monospace;
+    font-size: 14px;
+}
+
+.log-viewer .loading-container {
+    height: 100%;
+    width: 100%;
+    display: inline-grid;
+    align-content: center;
+    justify-content: center;
 }

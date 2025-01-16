@@ -23,6 +23,18 @@ export function useGetClients() {
     return useSWR("/api/server/clients", fetcher);
 }
 
+export function getServerLogsKey(jobId: string) {
+    return `/api/server/job/get_server_log/${jobId}`;
+}
+
+export function getClientLogsKey(jobId: string, clientIndex: number) {
+    return `/api/server/job/get_client_log/${jobId}/${clientIndex}`;
+}
+
+export function useSWRWithKey(key: string) {
+    return useSWR(key, fetcher);
+}
+
 export const usePost = () => {
     const [error, setError] = useState(null);
     const [isLoading, setIsLoading] = useState(null);
