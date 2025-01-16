@@ -3,6 +3,8 @@ import { getByText, render, cleanup, fireEvent } from "@testing-library/react";
 import { describe, afterEach, it, expect } from "@jest/globals";
 import { act } from "react-dom/test-utils";
 
+import yaml from "js-yaml";
+
 import EditJob, { makeEmptyJob } from "../../../../../app/jobs/edit/page";
 import { useGetModels, useGetClients, usePost } from "../../../../../app/jobs/hooks";
 
@@ -134,6 +136,85 @@ describe("New Job Page", () => {
             expect(jobServerConfigName).not.toBeInTheDocument();
             const jobServerConfigValue = container.querySelector("input#job-server-config-value-0");
             expect(jobServerConfigValue).not.toBeInTheDocument();
+        });
+        describe("Import Button", () => {
+            it("renders correctly", () => {
+                setupGetMocks();
+                setupPostMocks();
+                const { container } = render(<EditJob />);
+
+                const jobServerConfig = container.querySelector("div#job-server-config");
+                const importButton = jobServerConfig.querySelector("#job-server-config-import");
+                expect(importButton).toHaveTextContent("Import JSON or YAML");
+
+                const uploadFileButton = jobServerConfig.querySelector("#job-server-config-uploader");
+                uploadFileButton.click = jest.fn();
+
+                act(() => importButton.click());
+
+                expect(uploadFileButton.click).toHaveBeenCalled();
+            });
+            const testData = [
+                { name: "test_name_1", value: "test_value_1" },
+                { name: "test_name_2", value: "test_value_2" },
+                { name: "test_name_3", value: "test_value_3" },
+            ];
+            const testCases = [
+                { name: ".yaml", fileName: "test.yaml", dumpFunction: yaml.dump },
+                { name: ".yml", fileName: "test.yml", dumpFunction: yaml.dump },
+                { name: ".json", fileName: "test.json", dumpFunction: JSON.stringify },
+            ];
+            for (let testCase of testCases) {
+                it(`processes uploaded ${testCase.name} file correctly`, async () => {
+                    setupGetMocks();
+                    setupPostMocks();
+                    const { container } = render(<EditJob />);
+
+                    const jobServerConfig = container.querySelector("div#job-server-config");
+                    const uploadFileButton = jobServerConfig.querySelector("#job-server-config-uploader");
+
+                    const transformedTestData = Object.fromEntries(testData.map((d) => [d.name, d.value]));
+                    const fileMock = {
+                        name: testCase.fileName,
+                        text: async () => testCase.dumpFunction(transformedTestData),
+                    };
+
+                    await act(async () => fireEvent.change(uploadFileButton, { target: { files: [fileMock] } }));
+
+                    for (let i in testData) {
+                        const nameComponent = container.querySelector(`#job-server-config-name-${i}`);
+                        expect(nameComponent.value).toBe(testData[i].name);
+                        const valueComponent = container.querySelector(`#job-server-config-value-${i}`);
+                        expect(valueComponent.value).toBe(testData[i].value);
+                    }
+                });
+            }
+            it("does not process unknown file type", async () => {
+                setupGetMocks();
+                setupPostMocks();
+                const { container } = render(<EditJob />);
+
+                const jobServerConfig = container.querySelector("div#job-server-config");
+                const uploadFileButton = jobServerConfig.querySelector("#job-server-config-uploader");
+
+                const testData = [
+                    { name: "test_name_1", value: "test_value_1" },
+                    { name: "test_name_2", value: "test_value_2" },
+                    { name: "test_name_3", value: "test_value_3" },
+                ];
+                const fileMock = {
+                    name: "test.txt",
+                    text: async () =>
+                        "test_name_1: test_value_1\ntest_name_2: test_value_2\ntest_name_3: test_value_3\n",
+                };
+
+                await act(async () => fireEvent.change(uploadFileButton, { target: { files: [fileMock] } }));
+
+                const nameComponent = container.querySelector(`#job-server-config-name-0`);
+                expect(nameComponent.value).toBe("");
+                const valueComponent = container.querySelector(`#job-server-config-value-0`);
+                expect(valueComponent.value).toBe("");
+            });
         });
     });
 

@@ -1,6 +1,7 @@
 "use client";
+import yaml from "js-yaml";
 
-import { FormEvent } from "react";
+import { FormEvent, useRef } from "react";
 import { ReactElement } from "react/React";
 import { useImmer } from "use-immer";
 import { produce } from "immer";
@@ -260,6 +261,9 @@ export function EditJobServerConfig({ state, setState }): ReactElement {
         <div id="job-server-config">
             <div className="input-group-header">
                 <h6>Server Configuration</h6>
+
+                <EditJobServerConfigUploader state={state} setState={setState} />
+
                 <i
                     id="job-server-config-add"
                     className="material-icons opacity-10 input-group-action"
@@ -275,14 +279,74 @@ export function EditJobServerConfig({ state, setState }): ReactElement {
     );
 }
 
+export function EditJobServerConfigUploader({ state, setState }): ReactElement {
+    const buttonRef = useRef(null);
+
+    const handleFileUpload = async (event) => {
+        if (event.target.files && event.target.files[0]) {
+            const file = event.target.files[0];
+            const fileText = await file.text();
+
+            let data;
+            if (file.name.endsWith(".json")) {
+                data = JSON.parse(fileText);
+            } else if (file.name.endsWith(".yaml") || file.name.endsWith(".yml")) {
+                data = yaml.load(fileText);
+            } else {
+                console.error(`file extension not supported: ${file.name}`);
+                return;
+            }
+
+            const importedServerConfig = [];
+            for (let property of Object.keys(data)) {
+                const serverConfigItem = makeEmptyServerConfig();
+                serverConfigItem.name = property;
+                serverConfigItem.value = data[property];
+                importedServerConfig.push(serverConfigItem);
+            }
+
+            const setServerConfig = produce((newState, newServerConfig) => {
+                newState.job.server_config = newServerConfig;
+            });
+            setState(setServerConfig(state, importedServerConfig));
+        }
+    };
+
+    return (
+        <div>
+            <a
+                id="job-server-config-import"
+                className="btn btn-link"
+                title="Import Server Config as JSON or YAML"
+                onClick={() => buttonRef.current.click()}
+            >
+                <i className="material-icons">upload</i>
+                Import JSON or YAML
+            </a>
+            <input type="file" ref={buttonRef} id="job-server-config-uploader" onChange={handleFileUpload} />
+        </div>
+    );
+}
+
 export function EditJobServerConfigItem({ index, state, setState }): ReactElement {
     const changeServerConfigAttribute = produce((newState, attribute, value) => {
         newState.job.server_config[index][attribute] = value;
     });
+
+    let nameFieldClasses = "input-group input-group-outline gray-input-box mb-3 ";
+    if (state.job.server_config[index].name) {
+        nameFieldClasses += "is-filled";
+    }
+
+    let valueFieldClasses = "input-group input-group-outline gray-input-box mb-3 ";
+    if (state.job.server_config[index].value) {
+        valueFieldClasses += "is-filled";
+    }
+
     return (
         <div className="input-group-flex">
             <div className="input-group-column">
-                <div className="input-group input-group-outline gray-input-box mb-3">
+                <div className={nameFieldClasses}>
                     <label className="form-label" htmlFor={"job-server-config-name-" + index}>
                         Name
                     </label>
@@ -296,7 +360,7 @@ export function EditJobServerConfigItem({ index, state, setState }): ReactElemen
                 </div>
             </div>
             <div className="input-group-column">
-                <div className="input-group input-group-outline gray-input-box mb-3">
+                <div className={valueFieldClasses}>
                     <label className="form-label" htmlFor={"job-server-config-value-" + index}>
                         Value
                     </label>

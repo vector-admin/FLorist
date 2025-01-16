@@ -54,7 +54,7 @@ repos:
       - id: prettier-js-format
         name: prettier-js-format
         entry: yarn prettier
-        files: "florist/app"
+        files: "(florist/app|florist/tests/unit/app)"
         language: node
         types: [javascript]
         additional_dependencies:
